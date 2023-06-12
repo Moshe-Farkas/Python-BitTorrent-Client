@@ -1,0 +1,32 @@
+
+Torrent is a data structure that hold decoded / parsed data read from the .torrent file.
+
+
+
+after Torrent object is created peers should be handshaked.
+
+
+peers:
+    ip
+    port
+    state
+
+
+when a client downloads a block from a peer it should yield control to the writing to disk coroutine
+which yields back control when it finishes. the event loop should be filled with these downloading from peers
+coroutines
+
+
+step 1:
+    send and receive handshake
+
+
+piece.blocks should be an iterator generator. block_to_download = next(piece.blocks)
+
+
+PIECE MANAGER:
+    - is a async queue
+    - acts like a conveyer belt
+    - uses async file writing
+    - needs to calculate the overall byte offset the blocks belongs to in the end file
+
