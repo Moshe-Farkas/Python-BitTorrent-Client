@@ -1,14 +1,18 @@
 import asyncio
-import sys
 import urllib.parse
 from sys import argv
 from torrent import Torrent
 import requests
 from bcoding import bdecode
-from piece import Piece
+from torrent_session import TorrentSession
+
+
+#todo remove
 from peer import Peer
+
 import bencoder
 import bencodepy
+
 
 
 def build_tracker_url(torrent):
@@ -39,14 +43,15 @@ async def init_peers(peers_list, torrent):
 
 
 if __name__ == '__main__':
-    torrent = Torrent(argv[1])
-    torrent.temp_print_torrent_info()
-    Piece.PIECE_LENGTH = torrent.piece_length
-    url = build_tracker_url(torrent)
-    response_from_tracker = requests.get(url)
-    # decoded_response = bdecode(response_from_tracker.text.encode('utf-8'))
-    # print(response_from_tracker.text)
-    # decoded_response = bdecode(response_from_tracker.content)
-    decoded_response = bdecode(response_from_tracker.content)
+    torrent_info = Torrent(argv[1])
+    torrent_session = TorrentSession(torrent_info)
+    asyncio.run(torrent_session.start_session())
+    print('----- exited gracefully -----')
 
-    asyncio.run(init_peers(decoded_response['peers'], torrent))
+    # torrent.temp_print_torrent_info()
+    # url = build_tracker_url(torrent)
+    # response_from_tracker = requests.get(url)
+    # decoded_response = bdecode(response_from_tracker.text.encode('utf-8'))
+    # decoded_response = bdecode(response_from_tracker.content)
+
+    # asyncio.run(init_peers(decoded_response['peers'], torrent))

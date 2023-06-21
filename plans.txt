@@ -32,11 +32,12 @@ TorrentSession:
     - needs a work queue of uncompleted and un-in-progress pieces
     - start_session will be called only once. it will use private methods to get response from tracker and will
       re-request after interval time. when getting a response back it needs to pick up peers that aren't currently being
-      downloaded from. This should run from init
+      downloaded from.
 
     - needs to generate piece empty piece blueprints
     - needs to compare hashes of completed hashes
     - needs to run file_saver start coro
+    - needs build and send handshake to each Peer it creates
 
 
     interface:

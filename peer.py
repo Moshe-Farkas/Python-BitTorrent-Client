@@ -12,14 +12,14 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 
 class Peer:
-    def __init__(self, ip, port, torrent):
-        self.torrent = torrent
+    def __init__(self, ip, port, torrent_session):
+        self.torrent_session = torrent_session
         self.ip = ip
         self.port = port
         self.outbound_requests = 0
         self.choked = True
         self.bitfield = bitstring.BitArray(
-            bin='0' * int(torrent.num_of_pieces)
+            bin='0' * torrent_session.num_of_pieces
         )
         self.current_piece = None
 
@@ -28,8 +28,8 @@ class Peer:
         self.last_request_size = 0
         self.last_byte_offset_request = 0
 
-    def make_handshake(self):
-        return chr(19).encode() + b'BitTorrent protocol' + bytes(8) + self.torrent.info_hash + self.torrent.my_peer_id
+    # def make_handshake(self):
+    #     return chr(19).encode() + b'BitTorrent protocol' + bytes(8) + self.torrent.info_hash + self.torrent.my_peer_id
 
     async def download(self):
         self.current_state = 'waiting to connect'
@@ -38,12 +38,12 @@ class Peer:
         except ConnectionError:
             await self.print_peers("couldn't connect")
             self._handle_piece_put_back()
-            self.torrent.remove_peer(self)
+            self.torrent_session.remove_peer(self)
             return
         except TimeoutError:
 
             await self.print_peers("timed out")
-            self.torrent.remove_peer(self)
+            self.torrent_session.remove_peer(self)
             return
 
     async def _download(self):
@@ -52,7 +52,7 @@ class Peer:
             timeout=10
         )
 
-        handshake = self.make_handshake()
+        handshake = self.torrent_session.handshake()
         writer.write(handshake)
         await writer.drain()
 
@@ -148,15 +148,15 @@ class Peer:
         if self.outbound_requests > 1:
             return
         if not self.current_piece:
-            self.current_piece = self.torrent.get_new_piece(self.bitfield)
+            self.current_piece = self.torrent_session.dequeue_piece(self.bitfield)
             if not self.current_piece:
                 return
 
         if self.current_piece.complete():
             await self.send_interested(writer)
-            await self.torrent.on_piece_complete(self.current_piece.index)
+            await self.torrent_session.on_piece_complete(self.current_piece.index)
             print(f'from peer: {self.ip}\n')
-            self.current_piece = self.torrent.get_new_piece(self.bitfield)
+            self.current_piece = self.torrent_session.dequeue_piece(self.bitfield)
             if not self.current_piece:
                 return
 
@@ -185,11 +185,12 @@ class Peer:
 
     def _handle_piece_put_back(self):
         if self.current_piece:
-            self.torrent.put_piece_back(self.current_piece.index)
+            self.torrent_session.requeue_piece(self.current_piece.index)
 
     async def print_peers(self, state):
         # await asyncio.sleep(1)
         self.current_state = state
         # self.torrent.print_peers()
+
 
 
