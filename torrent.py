@@ -78,7 +78,7 @@ class Torrent:
         if 'files' in decoded_data['info']:
             self.multi_file_mode(decoded_data)
             return
-
+        
         self.tracker_base_url = decoded_data['announce']
 
         self.my_peer_id = sha1(str(time.time()).encode('utf-8')).digest()

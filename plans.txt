@@ -24,9 +24,25 @@ step 1:
 piece.blocks should be an iterator generator. block_to_download = next(piece.blocks)
 
 
-PIECE MANAGER:
-    - is a async queue
-    - acts like a conveyer belt
-    - uses async file writing
-    - needs to calculate the overall byte offset the blocks belongs to in the end file
+TorrentSession:
+    - main should build the Torrent info object and give it to the session constructor
+    - ability to start up session as a retry. needs the folder of already downloaded pieces.
+    - ability to re-request peers from tracker based on the tracker interval
+    - stats on num of pieces downloaded
+    - needs a work queue of uncompleted and un-in-progress pieces
+    - start_session will be called only once. it will use private methods to get response from tracker and will
+      re-request after interval time. when getting a response back it needs to pick up peers that aren't currently being
+      downloaded from. This should run from init
+
+    - needs to generate piece empty piece blueprints
+    - needs to compare hashes of completed hashes
+    - needs to run file_saver start coro
+
+
+    interface:
+        download_finished()
+        get_piece_from_work_queue()
+        put_piece_back_to_work_queue()
+
+
 

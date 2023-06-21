@@ -64,6 +64,7 @@ class Peer:
         await self.send_interested(writer)
 
         while True:
+            # TODO change from reader.read to wait_for and add a timeout
             buff = await reader.read(4)
             if not buff or len(buff) != 4:
                 self._handle_piece_put_back()
