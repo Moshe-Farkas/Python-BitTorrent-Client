@@ -25,8 +25,10 @@ class FileSaver:
         self.assemble_parts()
 
     def assemble_parts(self):
+        print(10*'-', ' assembling file ', 10*'-')
         with open('ubuntu.iso', 'wb') as final_file:
             for i in range(self._amount_of_pieces):
                 with open(f'temp-complete-file/_{i}', 'rb') as piece_file:
                     final_file.write(piece_file.read())
+                    print(f'appended piece {i}')
 

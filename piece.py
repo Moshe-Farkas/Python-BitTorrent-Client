@@ -1,5 +1,3 @@
-
-
 class Piece:
 
     def __init__(self, index, piece_length):

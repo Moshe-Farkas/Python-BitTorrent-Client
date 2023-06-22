@@ -6,6 +6,8 @@ from torrent import Torrent
 import urllib.parse
 from bcoding import bdecode
 from file_saver import FileSaver
+from piece import Piece
+from hashlib import sha1
 
 
 class TorrentSession:
@@ -14,33 +16,39 @@ class TorrentSession:
         self._completed_pieces = 0
         self._seeds = 0
         self._currently_downloading_peers = []  # list of {'ip': , 'port: }
-        self.num_of_pieces = torrent_info.num_of_pieces
-
+        self.amount_of_pieces = torrent_info.amount_of_pieces
+        self._unfinished_pieces = self._gen_pieces()
+        self._in_progress_pieces = set()
+        self.file_saver = FileSaver(self._torrent_info.torrent_name, self._torrent_info.amount_of_pieces)
         # todo move to tracker obj
         self.request_interval: int
 
-    async def start_session(self):
-        file_saver = FileSaver(self._torrent_info.torrent_name, self._torrent_info.num_of_pieces)
-        asyncio.ensure_future(file_saver.start())
-        while not self.complete():
-            # get_tracker_response()
-            # sift through peers and choose only the ones not in currently downloading list
-            # run_coros(response.peers) # non blocking. needs to add new peers only
-            # await sleep(interval_time)
+    def _gen_pieces(self):
+        pieces = {}
+        for i in range(self.amount_of_pieces - 1):
+            pieces[i] = Piece(i, self._torrent_info.piece_size)
 
+        last_piece_size = self._torrent_info.file_size - (self.amount_of_pieces - 1) * self._torrent_info.piece_size
+        pieces[self.amount_of_pieces - 1] = Piece(self.amount_of_pieces - 1, last_piece_size)
+
+        return pieces
+
+    async def start_session(self):
+        asyncio.ensure_future(self.file_saver.start())
+        while not self.complete():
             peers = self.tracker_response()
             # TODO choose only peers that are not currently downloading from
             self._start_peer_coros(peers)
             await asyncio.sleep(self.request_interval)
 
     def complete(self):
-        return self._completed_pieces == self._torrent_info.num_of_pieces
+        return self._completed_pieces == self._torrent_info.amount_of_pieces
 
     def _start_peer_coros(self, peer_infos):
         for peer_info in peer_infos:
             peer_obj = Peer(peer_info['ip'], peer_info['port'], self)
             asyncio.ensure_future(peer_obj.download())
-            self._currently_downloading_peers.append(peer_info)
+            self._currently_downloading_peers.append(peer_obj)
 
     def handshake(self):
         return chr(19).encode()\
@@ -50,16 +58,38 @@ class TorrentSession:
             + self._torrent_info.my_peer_id
 
     def remove_peer(self, peer):
-        pass
+        try:
+            self._currently_downloading_peers.remove(peer)
+        except ValueError:
+            raise ValueError('what???')
 
-    def dequeue_piece(self, bitfield):
-        pass
+    def fetch_work(self, bitfield):
+        # index = 1537
+        # if index in self._in_progress_pieces or index not in self._unfinished_pieces and bitfield[index]:
+        #     return None
+        # self._in_progress_pieces.add(index)
+        # return self._unfinished_pieces[index]
+        for index, piece in self._unfinished_pieces.items():
+            if index not in self._in_progress_pieces and bitfield[index]:
+                self._in_progress_pieces.add(index)
+                return piece
+        return None
 
     def requeue_piece(self, piece_index):
-        pass
+        self._in_progress_pieces.remove(piece_index)
 
-    def on_piece_complete(self, piece_index):
-        pass
+    async def on_piece_complete(self, piece_index):
+        self._completed_pieces += 1
+        print(f'completed piece index {piece_index} --- ({self._completed_pieces}/{self.amount_of_pieces})' +
+              f' ({round((self._completed_pieces / self.amount_of_pieces) * 100, 2)})')
+        # todo handle properly
+        piece_hash = sha1(self._unfinished_pieces[piece_index].downloaded_blocks).digest()
+        assert piece_hash == self._torrent_info.piece_hashes[piece_index]
+
+        self._in_progress_pieces.remove(piece_index)
+        await self.file_saver.put_piece(self._unfinished_pieces[piece_index])
+
+        del self._unfinished_pieces[piece_index]
 
     #TODO delagte to tracker object
     def tracker_response(self):
@@ -75,11 +105,8 @@ class TorrentSession:
         url = self._torrent_info.tracker_base_url + '?' + urllib.parse.urlencode(params)
         encoded_response = requests.get(url)
         decoded_response = bdecode(encoded_response.content)
-        # complete
-        # incomplete
-        # interval
-        # peers
-        self._seeds += decoded_response['complete']
+        if 'complete' in decoded_response:
+            self._seeds += decoded_response['complete']
         self.request_interval = decoded_response['interval']
         return decoded_response['peers']
 
@@ -90,25 +117,9 @@ class TorrentSession:
     #     self.piece_length = decoded_data['info']['piece length']
     #     self.piece_hashes = self._parse_piece_hashes(decoded_data['info']['pieces'])
     #     self.info_hash = sha1(bencode(decoded_data['info'])).digest()
-    #     self.num_of_pieces = ceil(self.file_size / self.piece_length)
+    #     self.amount_of_pieces = ceil(self.file_size / self.piece_length)
     #
-    # def _gen_pieces(self):
-    #     pieces = {}
-    #     for i in range(self.num_of_pieces - 1):
-    #         pieces[i] = Piece(i, self.piece_length)
-    #
-    #     last_piece_size = self.file_size - (self.num_of_pieces - 1) * self.piece_length
-    #     pieces[self.num_of_pieces-1] = (Piece(self.num_of_pieces-1, last_piece_size))
-    #     return pieces
-    #
-    # def temp_print_torrent_info(self):
-    #     print('file length: ', self.file_size)
-    #     print('tracker base url: ', self.tracker_base_url)
-    #     print('piece length: ', self.piece_length)
-    #     print('peer id: ', self.my_peer_id)
-    #     print('info hash: ', self.info_hash)
-    #     print('num of pieces: ', self.num_of_pieces)
-    #
+
     # def print_peers(self):
     #     dumb_count = 0
     #     os.system('cls')
@@ -130,41 +141,3 @@ class TorrentSession:
     #
     # def remove_peer(self, peer_to_remove):
     #     self.temp_peers.remove(peer_to_remove)
-    #
-    # def get_new_piece(self, have_bitfield):
-    #     # index = 13514
-    #     # if not have_bitfield[index] or index in self._completed_pieces or index in self._in_progress_pieces:
-    #     #     return None
-    #     # self._in_progress_pieces.append(index)
-    #     # return self._pieces[index]
-    #
-    #     for index, piece in self._pieces.items():
-    #         if index in self._in_progress_pieces or index in self._completed_pieces:
-    #             continue
-    #         # if index >= len(have_bitfield):
-    #         #     print(f'index {index} out of range of bitfield')
-    #         if have_bitfield[index]:
-    #             self._in_progress_pieces.append(index)
-    #             return piece
-    #     return None
-    #
-    # def put_piece_back(self, index):
-    #     # todo figure out why somtimes index is not in list
-    #     assert index in self._in_progress_pieces
-    #
-    #     if index in self._in_progress_pieces:
-    #         self._in_progress_pieces.remove(index)
-    #
-    # async def on_piece_complete(self, index):
-    #     print(f' ---- finished piece {index} ----- ')
-    #     piece_hash = sha1(self._pieces[index].downloaded_blocks).digest()
-    #     print(f'expected hash is {self.piece_hashes[index]}')
-    #     print(f'got {piece_hash}')
-    #     print(f'{round((self.completed_count / self.num_of_pieces) * 100, 2)}% complete')
-    #
-    #     self._completed_pieces.append(index)
-    #     self._in_progress_pieces.remove(index)
-    #     self.completed_count += 1
-    #     assert piece_hash == self.piece_hashes[index]
-    #     await self.file_saver.put_piece(self._pieces[index])
-    #     del self._pieces[index]
