@@ -11,7 +11,7 @@ class FileSaver:
         self._written_count = 0
         self._file_name = file_name
 
-    async def put_piece(self, piece):
+    async def put_piece(self, piece): 
         await self._write_queue.put(piece)
 
     async def start(self):
@@ -26,7 +26,7 @@ class FileSaver:
 
     def assemble_parts(self):
         print(10*'-', ' assembling file ', 10*'-')
-        with open('ubuntu.iso', 'wb') as final_file:
+        with open(self._file_name, 'wb') as final_file:
             for i in range(self._amount_of_pieces):
                 with open(f'temp-complete-file/_{i}', 'rb') as piece_file:
                     final_file.write(piece_file.read())
