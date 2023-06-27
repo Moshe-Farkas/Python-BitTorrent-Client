@@ -25,6 +25,8 @@ class Peer:
     async def download(self):
         max_retries = 5
         for i in range(max_retries):
+            if self.torrent_session.complete():
+                break
             print(f'trying for the {i+1}th time')
             try:
                 await self._download()

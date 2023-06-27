@@ -1,3 +1,10 @@
+TODO:
+    multi-file support
+    tracker refactor
+    udp support
+    announce list
+    refactor peer.py
+
 
 Torrent is a data structure that hold decoded / parsed data read from the .torrent file.
 
@@ -44,6 +51,27 @@ TorrentSession:
         download_finished()
         get_piece_from_work_queue()
         put_piece_back_to_work_queue()
+
+
+
+retry ability:
+    torrent session needs to check if temp-torrent-parts dir exists.
+    if yes:
+        serialize it into the dict of unfinished pieces.
+    else:
+        mkdir
+        and init all pieces
+
+
+
+multi-file mode:
+    torrent-session should look at downloading the torrent as a single file with a single list of pieces.
+    the file_saver needs to figure out how to assemble it to disk in order.
+    a single piece can span multiple files.
+    file saver should create if not exists a dir called torrent-parts and store all pieces in there until
+    it's time to assemble the final file(s).
+    file-saver:
+        all it needs is file information (dict of name and length)
 
 
 

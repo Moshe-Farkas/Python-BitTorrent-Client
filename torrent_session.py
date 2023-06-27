@@ -1,4 +1,5 @@
 import asyncio
+import os
 import sys
 import requests
 from peer import Peer
@@ -11,29 +12,44 @@ from hashlib import sha1
 
 
 class TorrentSession:
+    def temp_missing_pieces(self):
+        unfinished = []
+        for i in range(self.amount_of_pieces):
+            if not os.path.exists(f'{self.parts_folder_name}/_{i}'):
+                unfinished.append(i)
+
+        print('unfinished pieces: ', unfinished)
+
     def __init__(self, torrent_info: Torrent):
         self._torrent_info = torrent_info
-        self._completed_pieces = 0
-        self._seeds = 0
+        self.parts_folder_name = bytes.hex(self._torrent_info.info_hash)
+        self._seeds = -1
         self._currently_downloading_peers = []
         self.amount_of_pieces = torrent_info.amount_of_pieces
         self._unfinished_pieces = self._gen_pieces()
+        if os.path.exists(self.parts_folder_name):
+            self.serialize_saved_pieces()
+            self._completed_pieces = self.amount_of_pieces - len(self._unfinished_pieces)
+        else:
+            self._completed_pieces = 0
+            os.mkdir(self.parts_folder_name)
         self._in_progress_pieces = set()
-        self.file_saver = FileSaver(self._torrent_info.torrent_name, self._torrent_info.amount_of_pieces)
+        self.file_saver = FileSaver(self._torrent_info.files_info, self.amount_of_pieces, self.parts_folder_name)
         # todo move to tracker obj
         self.request_interval: int
 
-        self._completed_pieces = self.amount_of_pieces - 40
-
+    def serialize_saved_pieces(self):
+        for i in range(self.amount_of_pieces):
+            if os.path.exists(f'{self.parts_folder_name}/_{i}'):
+                self._unfinished_pieces.pop(i)
 
     def _gen_pieces(self):
         pieces = {}
         for i in range(self.amount_of_pieces - 1):
-            pieces[i] = Piece(i, self._torrent_info.piece_size)
+            pieces[i] = Piece(i, self._torrent_info.piece_length)
 
-        last_piece_size = self._torrent_info.file_size - (self.amount_of_pieces - 1) * self._torrent_info.piece_size
+        last_piece_size = self._torrent_info.total_torrent_length - (self.amount_of_pieces - 1) * self._torrent_info.piece_length
         pieces[self.amount_of_pieces - 1] = Piece(self.amount_of_pieces - 1, last_piece_size)
-
         return pieces
 
     async def start_session(self):
@@ -45,9 +61,6 @@ class TorrentSession:
             await asyncio.sleep(self.request_interval)
 
     def complete(self):
-        if self._completed_pieces == self._torrent_info.amount_of_pieces:
-            print('+'*10, 'finished', 10*'+')
-
         return self._completed_pieces == self._torrent_info.amount_of_pieces
 
     def _start_peer_coros(self, peer_infos):
@@ -82,7 +95,7 @@ class TorrentSession:
         self._completed_pieces += 1
         print(f'completed piece index {piece_index} --- ({self._completed_pieces}/{self.amount_of_pieces})' +
               f' ({round((self._completed_pieces / self.amount_of_pieces) * 100, 2)}%) peers left: {len(self._currently_downloading_peers)}')
-        # todo handle properly
+        # TODO handle properly
         piece_hash = sha1(self._unfinished_pieces[piece_index].downloaded_blocks).digest()
         assert piece_hash == self._torrent_info.piece_hashes[piece_index]
 
@@ -105,7 +118,7 @@ class TorrentSession:
             'port': port,
             'uploaded': 0,
             'downloaded': 0,
-            'left': self._torrent_info.file_size
+            'left': self._torrent_info.total_torrent_length
         }
         url = self._torrent_info.tracker_base_url + '?' + urllib.parse.urlencode(params)
         encoded_response = requests.get(url)
@@ -114,35 +127,3 @@ class TorrentSession:
             self._seeds += decoded_response['complete']
         self.request_interval = decoded_response['interval']
         return decoded_response['peers']
-
-    # def multi_file_mode(self, decoded_data):
-    #     self.tracker_base_url = decoded_data['announce']
-    #     self.my_peer_id = sha1(str(time.time()).encode('utf-8')).digest()
-    #     self.file_size = decoded_data['info']['files'][0]['length']   # fg-01
-    #     self.piece_length = decoded_data['info']['piece length']
-    #     self.piece_hashes = self._parse_piece_hashes(decoded_data['info']['pieces'])
-    #     self.info_hash = sha1(bencode(decoded_data['info'])).digest()
-    #     self.amount_of_pieces = ceil(self.file_size / self.piece_length)
-    #
-
-    # def print_peers(self):
-    #     dumb_count = 0
-    #     os.system('cls')
-    #     peer_id = 0
-    #     for peer in self.temp_peers:
-    #         if dumb_count % 3 == 0:
-    #             print()
-    #             dumb_count = 0
-    #
-    #         dumb_count += 1
-    #
-    #         spaces = 55 - len(peer.current_state)
-    #         print(f'{peer_id}:  {peer.current_state}', end=spaces * ' ')
-    #         peer_id += 1
-    #     print(f'\ncompleted pieces: {self.completed_count}')
-    #
-    # def temp_add_peer(self, peer):
-    #     self.temp_peers.append(peer)
-    #
-    # def remove_peer(self, peer_to_remove):
-    #     self.temp_peers.remove(peer_to_remove)
