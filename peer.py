@@ -27,17 +27,16 @@ class Peer:
         for i in range(max_retries):
             if self.torrent_session.complete():
                 break
-            print(f'trying for the {i+1}th time')
             try:
                 await self._download()
-                break
             except ConnectionError:
                 pass
             except TimeoutError:
                 pass
-
-        self._handle_piece_put_back()
-        self.torrent_session.remove_peer(self)
+            except OSError:
+                pass
+            self._handle_piece_put_back()
+            self.torrent_session.remove_peer(self)
 
     async def _download(self):
         reader, writer = await asyncio.wait_for(
@@ -57,15 +56,15 @@ class Peer:
 
         await self.send_interested(writer)
 
-        while not self.torrent_session.complete():
-            # TODO change from reader.read to wait_for and add a timeout
+        while True:
             buff = await asyncio.wait_for(
                 reader.read(4),
                 timeout=10
             )
+            if self.torrent_session.complete():
+                break
             if not buff or len(buff) != 4:
-                self._handle_piece_put_back()
-                return
+                break
             length = struct.unpack('>I', buff)[0]
             message = b''
             while len(message) < length:
@@ -73,7 +72,8 @@ class Peer:
                     reader.read(length - len(message)),
                     timeout=10
                 )
-
+            if self.torrent_session.complete():
+                break
             if length == 0:
                 continue
 
@@ -120,7 +120,9 @@ class Peer:
                 self.current_piece.put_data(message[9:])
 
             if not self.choked:
-                await self.request_piece(writer)
+                await self.request_block(writer)
+                if self.current_piece is None:
+                    break
 
         writer.close()
         await writer.wait_closed()
@@ -132,7 +134,7 @@ class Peer:
         writer.write(msg)
         await writer.drain()
 
-    async def request_piece(self, writer):
+    async def request_block(self, writer):
         if self.outbound_requests > 1:
             return
         if not self.current_piece:
@@ -167,7 +169,9 @@ class Peer:
 
     def _set_bitfield(self, bitfield):
         self.bitfield = bitfield if len(bitfield) > 0 else self.bitfield
+        self.bitfield = self.bitfield[: self.torrent_session.amount_of_pieces]
 
     def _handle_piece_put_back(self):
         if self.current_piece and not self.current_piece.complete():
             self.torrent_session.requeue_piece(self.current_piece.index)
+            self.current_piece = None

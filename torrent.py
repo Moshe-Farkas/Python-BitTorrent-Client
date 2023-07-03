@@ -8,7 +8,7 @@ class Torrent:
 
     def __init__(self, file_path):
         self.info_hash: bytes = b''
-        self.tracker_base_url: str = ''
+        self.tracker_urls = []
         self.piece_length: int = 0
         self.total_torrent_length: int
         self.piece_hashes = []
@@ -26,14 +26,17 @@ class Torrent:
         self.piece_length = decoded_data['info']['piece length']
         self.files_info = self.init_files(decoded_data['info'])
         self.total_torrent_length = sum([file_info['length'] for file_info in self.files_info])
-        self._create_folders()
-        self.tracker_base_url = decoded_data['announce']
+        self.tracker_urls.append(decoded_data['announce'])
+        if 'announce-list' in decoded_data:
+            for url in decoded_data['announce-list']:
+                self.tracker_urls.append(url[0])
         self.my_peer_id = sha1(str(time.time()).encode('utf-8')).digest()
         self.piece_hashes = self._parse_piece_hashes(decoded_data['info']['pieces'])
         self.amount_of_pieces = len(self.piece_hashes)
         self.info_hash = sha1(bencode(decoded_data['info'])).digest()
 
     def init_files(self, info_dict):
+        # TODO prob don't need offset
         if 'files' not in info_dict:
             single_file_info = {
                 'length': info_dict['length'],
@@ -68,23 +71,13 @@ class Torrent:
             file_paths.append(file_path)
         return file_paths
 
-    def _create_folders(self):
-        file_paths = [file_path['path'] for file_path in self.files_info]
-        if len(file_paths) == 1:
-            return
-        for file_path in file_paths:
-            dirs = os.path.dirname(file_path).split('/')
-            path = ''
-            for directory in dirs:
-                path += directory
-                if not os.path.exists(path):
-                    os.mkdir(path)
-                path += '/'
-
     def temp_print_torrent_info(self):
         print('info hash: ', self.info_hash)
-        print('tracker base url: ', self.tracker_base_url)
+        print('tracker base url: ', self.tracker_urls)
         print('piece size: ', self.piece_length)
         print('peer id: ', self.my_peer_id)
         print('amount of pieces: ', self.amount_of_pieces)
+        print('total file(s) length: ', self.total_torrent_length)
+        for file in self.files_info:
+            print(file)
         print(100*'-', '\n')
