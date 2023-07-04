@@ -3,5 +3,5 @@ temp.py
 torrent-files
 plans.txt
 .idea
-__pychache__
+__pychache__/
 missing_piece_script.py
