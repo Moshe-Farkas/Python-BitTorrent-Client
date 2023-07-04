@@ -1,7 +1,6 @@
-from bcoding import bdecode, bencode
 from hashlib import sha1
 import time
-import os
+from bencode import bencode, bdecode
 
 
 class Torrent:
@@ -16,13 +15,12 @@ class Torrent:
         self.amount_of_pieces = 0
         self.files_info = []  # list of dicts: {name: str, length: int)
         self._init_torrent_info(file_path)
-        self.temp_print_torrent_info()
 
     def _init_torrent_info(self, file_path):
         if not file_path.endswith('.torrent'):
             raise ValueError('non valid torrent file')
         with open(file_path, 'rb') as torrent_file:
-            decoded_data = bdecode(torrent_file)
+            decoded_data = bdecode(torrent_file.read())
         self.piece_length = decoded_data['info']['piece length']
         self.files_info = self.init_files(decoded_data['info'])
         self.total_torrent_length = sum([file_info['length'] for file_info in self.files_info])
@@ -39,12 +37,10 @@ class Torrent:
         self.info_hash = sha1(bencode(decoded_data['info'])).digest()
 
     def init_files(self, info_dict):
-        # TODO prob don't need offset
         if 'files' not in info_dict:
             single_file_info = {
                 'length': info_dict['length'],
                 'path': info_dict['name'],
-                'offset': 0
             }
             return [single_file_info]
         files_info = []
@@ -55,7 +51,6 @@ class Torrent:
             file_info = {
                 'length': file_length,
                 'path': file_path,
-                'offset': absolute_file_offset
             }
             absolute_file_offset += file_length
             files_info.append(file_info)
@@ -74,13 +69,13 @@ class Torrent:
             file_paths.append(file_path)
         return file_paths
 
-    def temp_print_torrent_info(self):
+    def print_torrent_info(self):
         print('info hash: ', self.info_hash)
-        print('tracker base url: ', self.tracker_urls)
-        print('piece size: ', self.piece_length)
+        print('trackers found in torrent file : ', self.tracker_urls)
+        print('piece length: ', self.piece_length)
         print('peer id: ', self.my_peer_id)
         print('amount of pieces: ', self.amount_of_pieces)
         print('total file(s) length: ', self.total_torrent_length)
         for file in self.files_info:
-            print(file)
+            print(file['path'], file['length'], 'B')
         print(100*'-', '\n')

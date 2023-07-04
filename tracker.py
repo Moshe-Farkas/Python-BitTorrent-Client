@@ -25,7 +25,7 @@ def http_tracker(announce_url, torrent_info):
         'left': torrent_info.total_torrent_length
     }
     url = announce_url + '?' + urllib.parse.urlencode(params)
-    encoded_response = requests.get(url, timeout=5.0)
+    encoded_response = requests.get(url, timeout=1.0)
     if encoded_response.status_code != 200:
         return []
     decoded_response = bdecode(encoded_response.content)
@@ -34,7 +34,7 @@ def http_tracker(announce_url, torrent_info):
 
 def udp_tracker(announce_url, torrent_info):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.settimeout(5.0)
+    sock.settimeout(1.0)
     connect_message = build_udp_connect_request()
     parsed_url = urllib.parse.urlparse(announce_url)
     try:

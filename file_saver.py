@@ -83,8 +83,7 @@ class File:
     def __init__(self, length, path):
         """
         :param length:
-        :param path:
-        :param offset: absolute offset within contiguous block of files
+        :param path: proper folder included
         """
         self.length = length
         self.path = path
@@ -100,8 +99,6 @@ class File:
         :param buffer:
         :return:
         """
-        # print('writing to file: ', self.open_file.name, ' and length of: ', len(buffer))
-
         self.open_file.write(buffer)
         self.current_offset += len(buffer)
 

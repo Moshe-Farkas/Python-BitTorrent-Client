@@ -1,4 +1,5 @@
 import asyncio
+import socket
 import struct
 import bitstring
 
@@ -17,10 +18,8 @@ class Peer:
             bin='0' * torrent_session.amount_of_pieces
         )
         self.current_piece = None
-
-        # todo debug stuff
-        self.last_request_size = 0
-        self.last_byte_offset_request = 0
+        self.last_request_size = -1
+        self.last_byte_offset_request = -1
 
     async def download(self):
         max_retries = 5
@@ -42,7 +41,6 @@ class Peer:
             asyncio.open_connection(self.ip, self.port),
             timeout=10
         )
-
         handshake = self.torrent_session.handshake()
         writer.write(handshake)
         await writer.drain()
@@ -51,10 +49,9 @@ class Peer:
             reader.read(68),
             timeout=10
         )
-        # TODO validate handshake
-
+        if not self.valid_handshake(received_handshake):
+            return
         await self.send_interested(writer)
-
         while True:
             buff = await asyncio.wait_for(
                 reader.read(4),
@@ -75,17 +72,13 @@ class Peer:
                 break
             if length == 0:
                 continue
-
             msg_id = struct.unpack('>b', message[:1])[0]
-
             if msg_id == 0:
                 self.choked = True
                 self._handle_piece_put_back()
                 continue
             elif msg_id == 1:
-
                 self.choked = False
-
                 await self.send_interested(writer)
             elif msg_id == 2 or msg_id == 3:
                 continue
@@ -93,29 +86,20 @@ class Peer:
                 if len(message[1:]) != 4:
                     continue
                 have_piece_index = struct.unpack('>I', message[1:])[0]
-
                 self.bitfield[have_piece_index] = True
-
             elif msg_id == 5:
                 self._set_bitfield(bitstring.BitArray(message[1: length]))
             elif msg_id == 7:
                 piece_index = struct.unpack('>I', message[1:5])[0]
+                if self.current_piece.index != piece_index:
+                    continue
                 self.outbound_requests -= 1
                 block_byte_offset = struct.unpack('>I', message[5:9])[0]
 
-                # assert self.last_byte_offset_request == block_byte_offset
-                # assert self.last_request_size == len(message[9:])
-
                 if self.last_request_size != len(message[9:]):
-                    # logging.error(f'piece index {piece_index}')
-                    # logging.error(f'requested block size {self.last_request_size}. got {len(message[9:])}\n')
                     continue
-
                 if self.last_byte_offset_request != block_byte_offset:
-                    # logging.error(f'piece index {piece_index}')
-                    # logging.error(f'requested byte offset {self.last_byte_offset_request} and got {block_byte_offset}\n')
                     continue
-
                 self.current_piece.put_data(message[9:])
 
             if not self.choked:
@@ -126,6 +110,11 @@ class Peer:
         writer.close()
         await writer.wait_closed()
         self._handle_piece_put_back()
+
+    def valid_handshake(self, handshake):
+        if len(handshake) != 68:
+            return False
+        return handshake[28:48] == self.torrent_session.info_hash
 
     async def send_interested(self, writer):
         msg = struct.pack('>Ib', 1, 2)
