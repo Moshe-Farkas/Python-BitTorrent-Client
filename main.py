@@ -9,8 +9,8 @@ if __name__ == '__main__':
     # argv.append('torrent-files/debian.torrent')
     # argv.append('torrent-files/doom64.torrent')
     # argv.append('torrent-files/ubuntu.torrent')
-    argv.append('torrent-files/partion-master.torrent')
-    # argv.append('torrent-files/revo.torrent')
+    # argv.append('torrent-files/partion-master.torrent')
+    argv.append('torrent-files/revo.torrent')
     # argv.append('torrent-files/gemstone.torrent')
 
     torrent_info = Torrent(argv[1])

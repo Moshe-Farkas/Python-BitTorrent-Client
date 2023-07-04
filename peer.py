@@ -36,7 +36,6 @@ class Peer:
             except OSError:
                 pass
             self._handle_piece_put_back()
-            self.torrent_session.remove_peer(self)
 
     async def _download(self):
         reader, writer = await asyncio.wait_for(
@@ -127,7 +126,6 @@ class Peer:
         writer.close()
         await writer.wait_closed()
         self._handle_piece_put_back()
-        self.torrent_session.remove_peer(self)
 
     async def send_interested(self, writer):
         msg = struct.pack('>Ib', 1, 2)

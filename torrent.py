@@ -26,6 +26,9 @@ class Torrent:
         self.piece_length = decoded_data['info']['piece length']
         self.files_info = self.init_files(decoded_data['info'])
         self.total_torrent_length = sum([file_info['length'] for file_info in self.files_info])
+        if 'announce' not in decoded_data:
+            print('Torrent file does contain any trackers')
+            exit(0)
         self.tracker_urls.append(decoded_data['announce'])
         if 'announce-list' in decoded_data:
             for url in decoded_data['announce-list']:

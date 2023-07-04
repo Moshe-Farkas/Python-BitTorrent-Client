@@ -83,7 +83,7 @@ class TorrentSession:
             + self._torrent_info.my_peer_id
 
     def fetch_work(self, bitfield):
-        for index, piece in self._unfinished_pieces.items():
+        for index, piece in reversed(self._unfinished_pieces.items()):
             if index not in self._in_progress_pieces and bitfield[index]:
                 self._in_progress_pieces.add(index)
                 return piece
@@ -99,9 +99,9 @@ class TorrentSession:
             self.requeue_piece(piece_index)
             return
 
+        self._completed_pieces += 1
         print(f'completed piece index {piece_index} --- ({self._completed_pieces}/{self.amount_of_pieces})' +
               f' ({round((self._completed_pieces / self.amount_of_pieces) * 100, 2):.2f}%)')
-        self._completed_pieces += 1
 
         self._in_progress_pieces.remove(piece_index)
         await self.file_saver.put_piece(self._unfinished_pieces[piece_index])
@@ -109,12 +109,6 @@ class TorrentSession:
 
         if self._completed_pieces == self.amount_of_pieces:
             await self.file_saver.put_piece(None)
-
-    def remove_peer(self, peer):
-        pass
-        # print(f'closing peer {peer.ip}')
-        # self._currently_downloading_peers.remove(peer)
-        # print(f'peers left: {len(self._currently_downloading_peers)}')
 
     # TODO delagte to tracker object
     def tracker_response(self):
