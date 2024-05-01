@@ -26,14 +26,13 @@ class Peer:
         for i in range(max_retries):
             if self.torrent_session.complete():
                 break
+
             try:
                 await self._download()
-            except ConnectionError:
+
+            except Exception:
                 pass
-            except TimeoutError:
-                pass
-            except OSError:
-                pass
+
             self._handle_piece_put_back()
 
     async def _download(self):
