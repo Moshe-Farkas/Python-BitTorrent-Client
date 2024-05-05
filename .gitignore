@@ -1,6 +1,7 @@
 venv
 temp.py
 torrent-files
+*.torrent
 plans.txt
 .idea
 __pycache__/
